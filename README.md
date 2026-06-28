@@ -1,10 +1,14 @@
 # github-proxy
 
-This is a tiny local MITM HTTPS proxy that intercepts requests to `github.com` and `api.github.com`, serving registered repos from a local directory instead. Unregistered repos pass through transparently to real GitHub.
+This is a tiny local HTTPS proxy that intercepts requests to `github.com` and `api.github.com`, serving registered repos from a local directory instead.
 
-No changes should be required to `flake.nix`, `go.mod`, or Nix derivations as the proxy is transparent to all consumers (Nix flakes, Go modules, `git clone`).
+It should support any consumer supporting the `https_proxy` env var convention and works by shelling out to `git` on your local directory.
 
-Developing Nix flakes with `github:` inputs normally requires pushing to GitHub first. Go modules with `require github.com/...` need tags published on the remote. This proxy lets you:
+The primary reason you would want to use this proxy is when you have many consumers that call GitHub (often with `git` or `libcurl`) without first-class overrides to prefer local directories.
+
+The proxy should be transparent to any consumer (Nix flakes, Go modules, `git clone`) once they are aware of this proxy (usually via `https_proxy` env var).
+
+For example, in most cases you can use `path:` with Nix flakes, this is a proxy that is heavier weight approach for resolving local git repos by intercepting GitHub calls instead, and unregistered repos pass through transparently to real GitHub; meaning practically you can keep your flake pointing to `github:...` while iterating locally. Here are a few more example use cases:
 
 - Iterate on a Nix flake library and its consumer locally without pushing
 - Develop Go modules and their dependents without publishing tags
@@ -22,10 +26,10 @@ No external Go dependencies, it's a pure standard library.
 
 ```bash
 # 1. Build
-nix build
+nix build && PATH="./result/bin/:$PATH"
 
 # 2. Initialize (generates CA, prints setup instructions)
-./result/bin/github-proxy init
+github-proxy init
 
 # 3. Follow the printed instructions to:
 #    - Trust the CA in macOS keychain
@@ -33,39 +37,44 @@ nix build
 #    - Add proxy env vars to your shell
 ```
 
-**Don't** set these permanently in `~/.zshrc` — they break everything when the proxy is off. Instead, add toggle functions to `~/.zshrc`:
-
-```bash
-github-proxy-start() {
-  github-proxy start --port 8443 &
-  eval $(github-proxy env --port=8443)
-  echo "Proxy on (PID $!). Run github-proxy-stop to disable."
-}
-
-github-proxy-stop() {
-  pkill -f 'github-proxy start' 2>/dev/null
-  eval $(github-proxy env --unset)
-  echo "Proxy off."
-}
-```
+Once the proxy is started, you'll have to export those env vars for consumers (your IDE, go binary, etc.) to be aware of it. (**Don't** set these permanently in `~/.zshrc`, they'll break everything when the proxy is off.)
 
 Finally,
 ```bash
-github-proxy-start
-
 # 4. Register a local repo
-./result/bin/github-proxy add ~/projects/my-library
+github-proxy add ~/projects/my-library
 
-# 5. Start the proxy
-./result/bin/github-proxy start
+# 5. Start the proxy if you haven't. (leave this running long lived)
+github-proxy start --port 8443 &
+eval $(github-proxy env)
 
-# 6. Everything just works
+# 6. Everything just works - your IDE, go LSPs, etc.
 nix build       # github: inputs resolve from local repos
 go build        # go.mod deps resolve from local repos
 git clone https://github.com/me/mylib  # clones from local if registered
 
-github-proxy-stop
+# when done,
+eval $(github-proxy env --unset)
 ```
+
+-----
+
+> [!WARNING]
+> Updating `/Library/LaunchDaemons/org.nixos.nix-daemon.plist` will set `https_proxy` variable.
+> The implication of this is that your normal Nix builds will **always** go through this proxy.
+> If the proxy is down, you won't be able to build at all (`Could not connect to server (7) Failed to connect to localhost port...`)
+> This is, basically by design.
+> Either remove this environment variable temporarily to continue the build, or start your proxy.
+
+----
+
+> [!WARNING]
+> Nix flake's sandbox builds don't automatically pick up `https_proxy`.
+> Instead, you can export these environment variables in the build phase.
+> e.g. `if [ -f "/etc/nix/ca-bundle.crt" ] ... eval $(github-proxy env)`
+> It's kind of unfortunate, but this condition helps protect production (CI/CD) builds
+> that need to resolve from GitHub directly.
+> You do not need to change the inputs - just leave it as `github:...`.
 
 ## *Deep dive*
 
