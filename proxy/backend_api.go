@@ -10,6 +10,7 @@ import (
 )
 
 func serveAPI(repoPath string, req *http.Request) (*http.Response, error) {
+	log.Printf("API   %s", req.URL.String())
 	ref := extractRef(req.URL.Path)
 
 	sha, err := gitCmd(repoPath, "rev-parse", ref)

@@ -11,6 +11,7 @@ import (
 )
 
 func serveArchive(repoPath string, req *http.Request) (*http.Response, error) {
+	log.Printf("ARCH  %s", req.URL.String())
 	sha := extractArchiveSHA(req.URL.Path)
 	if sha == "" {
 		return nil, fmt.Errorf("no SHA in archive path: %s", req.URL.Path)

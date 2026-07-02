@@ -3,12 +3,14 @@ package proxy
 import (
 	"crypto/tls"
 	"io"
+	"log"
 	"net/http"
 )
 
 type Upstream struct{}
 
 func (u *Upstream) Forward(req *http.Request, targetHost string) (*http.Response, error) {
+	log.Printf("FWD   %s %s → %s", req.Method, req.URL.String(), targetHost)
 	outReq := cloneRequest(req)
 	outReq.URL.Scheme = "https"
 	outReq.URL.Host = targetHost

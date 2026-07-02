@@ -1,6 +1,9 @@
 package proxy
 
 import (
+	"fmt"
+	"io"
+	"log"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -13,6 +16,8 @@ type Router struct {
 }
 
 func (r *Router) Route(req *http.Request, host string) (*http.Response, error) {
+	log.Printf("REQ %s %s", req.Method, req.URL.String())
+
 	owner, repo, ok := parseRepo(req.URL.Path)
 	if !ok {
 		return r.upstream.Forward(req, host)
@@ -27,6 +32,8 @@ func (r *Router) Route(req *http.Request, host string) (*http.Response, error) {
 	path := req.URL.Path
 
 	switch {
+	case strings.Contains(req.URL.RawQuery, "go-get=1"):
+		return serveGoGetMeta(owner, repoName)
 	case isGitSmartHTTP(path):
 		return serveGitBackend(r.reposDir, req)
 	case isAPICommits(path):
@@ -66,4 +73,20 @@ func isAPICommits(path string) bool {
 
 func isArchive(path string) bool {
 	return strings.Contains(path, "/archive/") || strings.Contains(path, "/tarball/")
+}
+
+func serveGoGetMeta(owner, repo string) (*http.Response, error) {
+	html := fmt.Sprintf(`<html><head><meta name="go-import" content="github.com/%s/%s git https://github.com/%s/%s"></head><body></body></html>`, owner, repo, owner, repo)
+	return &http.Response{
+		StatusCode:    200,
+		Status:        "200 OK",
+		Proto:         "HTTP/1.1",
+		ProtoMajor:    1,
+		ProtoMinor:    1,
+		ContentLength: int64(len(html)),
+		Body:          io.NopCloser(strings.NewReader(html)),
+		Header: http.Header{
+			"Content-Type": []string{"text/html; charset=utf-8"},
+		},
+	}, nil
 }

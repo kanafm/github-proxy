@@ -19,6 +19,7 @@ func main() {
 		fmt.Println("  add       Register a local repo")
 		fmt.Println("  list      List registered repos")
 		fmt.Println("  remove    Remove a registered repo")
+		fmt.Println("  update    Fetch new branches/tags into a registered repo")
 		os.Exit(1)
 	}
 
@@ -33,6 +34,8 @@ func main() {
 		cmd.List()
 	case "remove":
 		cmd.Remove(os.Args[2:])
+	case "update":
+		cmd.Update(os.Args[2:])
 	case "env":
 		unset := false
 		port := "8443"

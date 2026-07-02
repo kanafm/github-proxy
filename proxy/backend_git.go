@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"os"
 	"os/exec"
@@ -12,6 +13,7 @@ import (
 )
 
 func serveGitBackend(reposRootDir string, req *http.Request) (*http.Response, error) {
+	log.Printf("GIT   %s", req.URL.String())
 	cmd := exec.Command("git", "http-backend")
 	cmd.Env = append(os.Environ(),
 		"GIT_PROJECT_ROOT="+reposRootDir,
